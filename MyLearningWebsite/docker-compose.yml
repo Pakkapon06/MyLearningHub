@@ -1,0 +1,71 @@
+version: '3.9'
+
+services:
+  # ─── PostgreSQL Database ───
+  db:
+    image: postgres:16-alpine
+    container_name: mywebsite_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: mywebsite_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schemas:/docker-entrypoint-initdb.d
+
+  # ─── Redis Cache ───
+  redis:
+    image: redis:7-alpine
+    container_name: mywebsite_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  # ─── Backend API ───
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: mywebsite_backend
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./backend/uploads:/app/uploads
+    depends_on:
+      - db
+      - redis
+
+  # ─── Frontend ───
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: mywebsite_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+  # ─── Nginx Reverse Proxy ───
+  nginx:
+    image: nginx:alpine
+    container_name: mywebsite_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      - frontend
+      - backend
+
+volumes:
+  postgres_data:
